@@ -1,10 +1,16 @@
 pipeline {
     agent any
     
+    tools {
+        // Configure Maven installation (make sure Maven is configured in Jenkins Global Tool Configuration)
+        maven 'M3'  // Use the name of your Maven installation in Jenkins
+        jdk 'jdk21' // Use the name of your JDK installation in Jenkins
+    }
+    
     environment {
         // Define environment variables
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        MAVEN_OPTS = '-Xmx1024m -XX:MaxPermSize=256m'  // Maven memory settings
+        MAVEN_OPTS = '-Xmx1024m -XX:MaxPermSize=256m'
     }
     
     stages {
@@ -26,14 +32,10 @@ pipeline {
                     java -version
                     echo "Maven Version:"
                     mvn --version
-                    echo "Maven Home:"
-                    mvn -version | grep "Maven home"
                     echo "Current directory:"
                     pwd
                     echo "Project structure:"
                     ls -la
-                    echo "Source files:"
-                    find . -name "pom.xml" -o -name "*.java" | head -10
                 '''
             }
         }
@@ -56,10 +58,6 @@ pipeline {
                     echo "=== Resolving Dependencies ==="
                     mvn dependency:resolve -q
                     echo "Dependencies resolved successfully"
-                    
-                    # Show dependency tree for debugging
-                    echo "=== Dependency Tree ==="
-                    mvn dependency:tree -Dverbose -q | head -20 || echo "Dependency tree generation completed"
                 '''
             }
         }
@@ -70,8 +68,6 @@ pipeline {
                 sh '''
                     echo "=== Compiling Code ==="
                     mvn compile -q
-                    echo "=== Checking compiled classes ==="
-                    find target/classes -name "*.class" | head -5 || echo "No classes found yet"
                     echo "Compilation completed successfully"
                 '''
             }
@@ -84,16 +80,11 @@ pipeline {
                     echo "=== Running Tests with Coverage ==="
                     mvn test jacoco:report -q
                     echo "Tests and coverage report completed"
-                    
-                    # Show test results summary - FIXED LINE
-                    echo "=== Test Results Summary ==="
-                    find target/surefire-reports -name "*.txt" -exec head -5 {} \\; 2>/dev/null || echo "Test reports being generated"
                 '''
             }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
-                    // Archive test reports for debugging
                     archiveArtifacts artifacts: '**/target/surefire-reports/*.txt, **/target/site/jacoco/*', fingerprint: false
                 }
             }
@@ -105,19 +96,11 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        sonar-scanner \
+                        mvn sonar:sonar \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.projectName='Spring PetClinic' \
-                        -Dsonar.projectVersion=1.0 \
-                        -Dsonar.sources=src/main/java \
-                        -Dsonar.tests=src/test/java \
-                        -Dsonar.java.binaries=target/classes \
-                        -Dsonar.java.libraries=~/.m2/repository/**/*.jar \
-                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
-                        -Dsonar.sourceEncoding=UTF-8 \
                         -Dsonar.host.url=\${SONAR_HOST_URL} \
-                        -Dsonar.login=\${SONAR_AUTH_TOKEN} \
-                        -X  # Enable debug mode for troubleshooting
+                        -Dsonar.login=\${SONAR_AUTH_TOKEN}
                     """
                 }
             }
@@ -138,67 +121,29 @@ pipeline {
                 sh '''
                     echo "=== Building Package ==="
                     mvn package -DskipTests -q
-                    echo "=== Generated Artifacts ==="
-                    find target -name "*.jar" -o -name "*.war" | head -10
                     echo "Package built successfully"
                 '''
             }
             post {
                 success {
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                    sh '''
-                        echo "=== Package Details ==="
-                        ls -la target/*.jar
-                    '''
                 }
-            }
-        }
-        
-        // Stage 10: Integration Tests (Optional)
-        stage('Integration Tests') {
-            steps {
-                sh '''
-                    echo "=== Running Integration Tests ==="
-                    mvn verify -q -DskipUnitTests || echo "Integration tests completed or skipped"
-                '''
             }
         }
     }
     
     post {
         always {
-            // Generate build summary
-            sh '''
+            // Generate build summary - FIXED: Use env variables properly
+            sh """
                 echo "=== Build Summary ==="
-                echo "Build: ${JOB_NAME} #${BUILD_NUMBER}"
+                echo "Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
                 echo "Result: ${currentBuild.currentResult}"
-                echo "Workspace: ${WORKSPACE}"
-                
-                # Show final artifacts
-                echo "=== Final Artifacts ==="
-                find target -name "*.jar" -o -name "*.xml" 2>/dev/null | head -10 || echo "No artifacts found"
-            '''
+                echo "Workspace: ${env.WORKSPACE}"
+            """
             
-            // Clean up large files to save space (optional)
-            sh '''
-                echo "=== Cleaning up large files ==="
-                du -sh . || echo "Disk usage check completed"
-            '''
-            
-            // Send notification (configure email in Jenkins first)
-            emailext (
-                subject: "Build ${currentBuild.currentResult}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}
-                Status: ${currentBuild.currentResult}
-                Duration: ${currentBuild.durationString}
-                URL: ${env.BUILD_URL}
-                
-                Check the console output for detailed results.
-                """,
-                to: "developer@company.com",  // Update with your email
-                attachLog: true
-            )
+            // Clean up workspace
+            cleanWs()
         }
         
         success {
@@ -206,8 +151,6 @@ pipeline {
             sh '''
                 echo "=== SUCCESS ==="
                 echo "All stages completed successfully"
-                echo "Artifacts are available in Jenkins"
-                echo "SonarQube analysis completed"
             '''
         }
         
@@ -216,27 +159,11 @@ pipeline {
             sh '''
                 echo "=== FAILURE ==="
                 echo "Check the specific stage that failed above"
-                echo "Common issues:"
-                echo "- Compilation errors"
-                echo "- Test failures"
-                echo "- SonarQube connection issues"
-                echo "- Dependency resolution problems"
             '''
         }
         
         unstable {
             echo "⚠️ Pipeline completed but quality gate failed!"
-            sh '''
-                echo "=== UNSTABLE ==="
-                echo "Quality gate not met in SonarQube"
-                echo "Check SonarQube dashboard for details"
-            '''
-        }
-        
-        cleanup {
-            // Optional: Clean workspace after build
-            // cleanWs notCleanWhen: 'FAILED'
-            echo "=== Cleanup completed ==="
         }
     }
 }
