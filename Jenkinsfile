@@ -85,9 +85,9 @@ pipeline {
                     mvn test jacoco:report -q
                     echo "Tests and coverage report completed"
                     
-                    # Show test results summary
+                    # Show test results summary - FIXED LINE
                     echo "=== Test Results Summary ==="
-                    find target/surefire-reports -name "*.txt" -exec head -5 {} \; 2>/dev/null || echo "Test reports being generated"
+                    find target/surefire-reports -name "*.txt" -exec head -5 {} \\; 2>/dev/null || echo "Test reports being generated"
                 '''
             }
             post {
