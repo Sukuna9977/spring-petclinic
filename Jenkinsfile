@@ -1,14 +1,10 @@
 pipeline {
     agent any
     
-    tools {
-        jdk 'jdk17'  // Adjust to your JDK tool name in Jenkins
-    }
-    
     environment {
         // Define environment variables
-        SONAR_PROJECT_KEY = 'my-java-app'
-        DOCKER_REGISTRY = 'your-docker-registry'  // Optional for Docker builds
+        SONAR_PROJECT_KEY = 'spring-petclinic'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'  // Adjust path as needed
     }
     
     stages {
@@ -21,118 +17,93 @@ pipeline {
             }
         }
         
-        // Stage 2: Dependency Resolution
+        // Stage 2: Verify Environment
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                    echo "=== Checking Environment ==="
+                    java -version || echo "Java not found"
+                    mvn -version || echo "Maven not found"
+                    which sonar-scanner || echo "SonarScanner not found"
+                    pwd
+                    ls -la
+                '''
+            }
+        }
+        
+        // Stage 3: Dependency Resolution
         stage('Resolve Dependencies') {
             steps {
                 sh '''
                     echo "=== Installing Dependencies ==="
-                    # For Maven projects
-                    mvn dependency:resolve || echo "Maven not available"
-                    
-                    # For Gradle projects
-                    ./gradlew dependencies || echo "Gradle not available"
-                    
-                    # For Node.js projects
-                    npm install || echo "NPM not available"
+                    mvn dependency:resolve -q || echo "Dependency resolution completed"
                 '''
             }
         }
         
-        // Stage 3: Code Compilation
+        // Stage 4: Code Compilation
         stage('Compile Code') {
             steps {
                 sh '''
                     echo "=== Compiling Code ==="
-                    # Maven compilation
-                    mvn compile -q || echo "Maven compilation failed or not available"
-                    
-                    # Gradle compilation
-                    ./gradlew classes -q || echo "Gradle compilation failed or not available"
-                    
-                    # Check if compiled classes exist
-                    find . -name "*.class" -o -name "target" -o -name "build" | head -5
+                    mvn compile -q
+                    echo "Compilation completed successfully"
                 '''
             }
         }
         
-        // Stage 4: Unit Tests
+        // Stage 5: Unit Tests
         stage('Run Unit Tests') {
             steps {
                 sh '''
                     echo "=== Running Unit Tests ==="
-                    # Maven tests
-                    mvn test -q || echo "Maven tests failed or not available"
-                    
-                    # Gradle tests
-                    ./gradlew test -q || echo "Gradle tests failed or not available"
-                    
-                    # Node.js tests
-                    npm test || echo "NPM tests failed or not available"
+                    mvn test -q
+                    echo "Tests completed"
                 '''
             }
             post {
                 always {
-                    junit '**/target/surefire-reports/*.xml'  // Maven test reports
-                    junit '**/build/test-results/**/*.xml'   // Gradle test reports
+                    junit '**/target/surefire-reports/*.xml'
                 }
             }
         }
         
-        // Stage 5: Code Quality Analysis
+        // Stage 6: Code Quality Analysis
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         sonar-scanner \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=\${SONAR_HOST_URL} \
-                        -Dsonar.login=\${SONAR_AUTH_TOKEN} \
+                        -Dsonar.sources=src/main/java \
+                        -Dsonar.tests=src/test/java \
                         -Dsonar.java.binaries=target/classes \
-                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                        -Dsonar.host.url=\${SONAR_HOST_URL} \
+                        -Dsonar.login=\${SONAR_AUTH_TOKEN}
                     """
                 }
             }
         }
         
-        // Stage 6: Build Artifact
+        // Stage 7: Build Artifact
         stage('Build Package') {
             steps {
                 sh '''
                     echo "=== Building Package ==="
-                    # Maven package
-                    mvn package -DskipTests -q || echo "Maven package failed"
-                    
-                    # Gradle build
-                    ./gradlew build -x test -q || echo "Gradle build failed"
-                    
-                    # List generated artifacts
-                    find . -name "*.jar" -o -name "*.war" -o -name "*.zip" | head -10
+                    mvn package -DskipTests -q
+                    echo "Package built successfully"
                 '''
                 // Archive the built artifacts
-                archiveArtifacts artifacts: '**/target/*.jar, **/build/libs/*.jar', fingerprint: true
-            }
-        }
-        
-        // Stage 7: Security Scan (Optional)
-        stage('Security Scan') {
-            steps {
-                sh '''
-                    echo "=== Running Security Checks ==="
-                    # OWASP Dependency Check (if installed)
-                    mvn org.owasp:dependency-check-maven:check -q || echo "Dependency check not available"
-                    
-                    # npm audit for Node.js
-                    npm audit --audit-level moderate || echo "NPM audit not available"
-                '''
+                archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
             }
         }
     }
     
     post {
         always {
-            // Always clean workspace
-            cleanWs()
+            // Clean workspace (optional)
+            // cleanWs()
             
             // Send notification
             emailext (
@@ -144,12 +115,13 @@ pipeline {
                 
                 Check the console output for details.
                 """,
-                to: "dev-team@company.com"
+                to: "dev-team@company.com"  // Update with your email
             )
         }
         success {
             echo "Build completed successfully! 🎉"
-            // Optional: Deploy to dev environment
+            // Archive test results
+            archiveArtifacts artifacts: '**/target/*.jar, **/target/surefire-reports/*.xml', fingerprint: true
         }
         failure {
             echo "Build failed! Please check the logs. ❌"
