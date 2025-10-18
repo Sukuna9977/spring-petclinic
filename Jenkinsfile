@@ -2,12 +2,12 @@ pipeline {
     agent any
     
     tools {
-        maven 'maven'  // Use the exact name you configured
+        maven 'maven'
     }
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        MAVEN_OPTS = '-Xmx1024m -XX:MaxPermSize=256m'
+        MAVEN_OPTS = '-Xmx1024m'  // Removed MaxPermSize which is deprecated
     }
     
     stages {
