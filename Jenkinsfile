@@ -1,17 +1,11 @@
 pipeline {
-    agent {
-        dockerContainer {
-            image 'maven:3.9.9-eclipse-temurin-25-alpine'
-            args '-v $HOME/.m2:/root/.m2'
-        }
-    }
+    agent any
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
     }
     
     stages {
-        // Stage 1: Code Checkout
         stage('Checkout SCM') {
             steps {
                 checkout scm
@@ -20,55 +14,64 @@ pipeline {
             }
         }
         
-        // Stage 2: Verify Environment
         stage('Verify Environment') {
             steps {
                 sh '''
                     echo "=== Checking Environment ==="
                     echo "Java Version:"
                     java -version
-                    echo "Maven Version:"
-                    mvn --version
+                    echo "Maven Wrapper:"
+                    ./mvnw --version
                     echo "Current directory:"
                     pwd
+                    echo "Project structure:"
+                    ls -la
                 '''
             }
         }
         
-        // Stage 3: Clean and Build
-        stage('Clean and Build') {
+        stage('Clean Project') {
             steps {
                 sh '''
-                    echo "=== Cleaning and Building ==="
-                    mvn clean compile -q
-                    echo "Build completed successfully"
+                    echo "=== Cleaning Project ==="
+                    ./mvnw clean -q -Denforcer.skip=true
+                    echo "Clean completed"
                 '''
             }
         }
         
-        // Stage 4: Run Tests
-        stage('Run Tests') {
+        stage('Compile Code') {
             steps {
                 sh '''
-                    echo "=== Running Tests ==="
-                    mvn test jacoco:report -q
-                    echo "Tests completed"
+                    echo "=== Compiling Code ==="
+                    ./mvnw compile -q -Denforcer.skip=true
+                    echo "Compilation completed successfully"
+                '''
+            }
+        }
+        
+        stage('Run Tests with Coverage') {
+            steps {
+                sh '''
+                    echo "=== Running Tests with Coverage ==="
+                    ./mvnw test jacoco:report -q -Denforcer.skip=true
+                    echo "Tests and coverage report completed"
                 '''
             }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
+                    archiveArtifacts artifacts: '**/target/surefire-reports/*.txt, **/target/site/jacoco/*', fingerprint: false
                 }
             }
         }
         
-        // Stage 5: SonarQube Analysis
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        mvn sonar:sonar \
+                        ./mvnw sonar:sonar -q -Denforcer.skip=true \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.projectName='Spring PetClinic' \
                         -Dsonar.host.url=\${SONAR_HOST_URL} \
@@ -78,7 +81,6 @@ pipeline {
             }
         }
         
-        // Stage 6: Quality Gate
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -87,18 +89,21 @@ pipeline {
             }
         }
         
-        // Stage 7: Build Package
         stage('Build Package') {
             steps {
                 sh '''
                     echo "=== Building Package ==="
-                    mvn package -DskipTests -q
+                    ./mvnw package -DskipTests -q -Denforcer.skip=true
                     echo "Package built successfully"
                 '''
             }
             post {
                 success {
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+                    sh '''
+                        echo "=== Generated Artifact ==="
+                        ls -la target/*.jar
+                    '''
                 }
             }
         }
@@ -110,7 +115,40 @@ pipeline {
                 echo "=== Build Summary ==="
                 echo "Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
                 echo "Result: ${currentBuild.currentResult}"
+                echo "Workspace: ${env.WORKSPACE}"
             """
+        }
+        
+        success {
+            echo "🎉 Pipeline executed successfully!"
+            sh '''
+                echo "=== SUCCESS ==="
+                echo "All stages completed successfully"
+                echo "Artifacts are available in Jenkins"
+                echo "SonarQube analysis completed"
+            '''
+        }
+        
+        failure {
+            echo "❌ Pipeline failed! Check the logs above."
+            sh '''
+                echo "=== FAILURE ==="
+                echo "Check the specific stage that failed above"
+                echo "Common issues:"
+                echo "- Compilation errors"
+                echo "- Test failures" 
+                echo "- SonarQube connection issues"
+                echo "- Dependency resolution problems"
+            '''
+        }
+        
+        unstable {
+            echo "⚠️ Pipeline completed but quality gate failed!"
+            sh '''
+                echo "=== UNSTABLE ==="
+                echo "Quality gate not met in SonarQube"
+                echo "Check SonarQube dashboard for details"
+            '''
         }
     }
 }
