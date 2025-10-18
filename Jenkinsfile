@@ -1,9 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'maven:3.9.9-eclipse-temurin-25-alpine'
+            args '-v $HOME/.m2:/root/.m2'
+        }
+    }
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        // Let Maven wrapper handle Java version
     }
     
     stages {
@@ -21,55 +25,46 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Checking Environment ==="
-                    echo "System Java Version:"
+                    echo "Java Version:"
                     java -version
-                    echo "Maven Wrapper:"
-                    ./mvnw --version || echo "Using system Maven"
+                    echo "Maven Version:"
+                    mvn --version
                     echo "Current directory:"
                     pwd
+                    echo "Project structure:"
+                    ls -la
                 '''
             }
         }
         
-        // Stage 3: Clean Workspace - Use Maven Wrapper
+        // Stage 3: Clean Workspace
         stage('Clean Project') {
             steps {
                 sh '''
                     echo "=== Cleaning Project ==="
-                    ./mvnw clean -q
+                    mvn clean -q
                     echo "Clean completed"
                 '''
             }
         }
         
-        // Stage 4: Dependency Resolution - Use Maven Wrapper
-        stage('Resolve Dependencies') {
-            steps {
-                sh '''
-                    echo "=== Resolving Dependencies ==="
-                    ./mvnw dependency:resolve -q
-                    echo "Dependencies resolved successfully"
-                '''
-            }
-        }
-        
-        // Stage 5: Code Compilation - Use Maven Wrapper
+        // Stage 4: Code Compilation
         stage('Compile Code') {
             steps {
                 sh '''
                     echo "=== Compiling Code ==="
-                    ./mvnw compile -q
+                    mvn compile -q
                     echo "Compilation completed successfully"
                 '''
             }
         }
         
-        // Stage 6: Run Tests with Coverage - Use Maven Wrapper
+        // Stage 5: Run Tests with Coverage
         stage('Run Tests with Coverage') {
             steps {
                 sh '''
                     echo "=== Running Tests with Coverage ==="
-                    ./mvnw test jacoco:report -q
+                    mvn test jacoco:report -q
                     echo "Tests and coverage report completed"
                 '''
             }
@@ -81,13 +76,13 @@ pipeline {
             }
         }
         
-        // Stage 7: Code Quality Analysis - Use Maven Wrapper
+        // Stage 6: Code Quality Analysis
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        ./mvnw sonar:sonar \
+                        mvn sonar:sonar \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.projectName='Spring PetClinic' \
                         -Dsonar.host.url=\${SONAR_HOST_URL} \
@@ -97,7 +92,7 @@ pipeline {
             }
         }
         
-        // Stage 8: Wait for Quality Gate
+        // Stage 7: Wait for Quality Gate
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -106,12 +101,12 @@ pipeline {
             }
         }
         
-        // Stage 9: Build Package - Use Maven Wrapper
+        // Stage 8: Build Package
         stage('Build Package') {
             steps {
                 sh '''
                     echo "=== Building Package ==="
-                    ./mvnw package -DskipTests -q
+                    mvn package -DskipTests -q
                     echo "Package built successfully"
                 '''
             }
@@ -139,10 +134,6 @@ pipeline {
         
         failure {
             echo "❌ Pipeline failed! Check the logs above."
-        }
-        
-        unstable {
-            echo "⚠️ Pipeline completed but quality gate failed!"
         }
     }
 }
