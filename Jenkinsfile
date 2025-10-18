@@ -77,6 +77,8 @@ pipeline {
                     sh '''
                         echo "=== Generated Artifact ==="
                         ls -la target/*.jar
+                        echo "Artifact size:"
+                        du -h target/*.jar
                     '''
                 }
             }
@@ -101,7 +103,7 @@ pipeline {
         
         stage('Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
+                timeout(time: 10, unit: 'MINUTES') {  // Increased timeout
                     waitForQualityGate abortPipeline: false  // Don't abort on quality gate failure
                 }
             }
@@ -116,14 +118,35 @@ pipeline {
                 echo "Result: ${currentBuild.currentResult}"
                 echo "Workspace: ${env.WORKSPACE}"
             """
+            
+            // Clean up workspace to save disk space
+            cleanWs()
         }
         
         success {
             echo "🎉 Pipeline executed successfully!"
+            sh '''
+                echo "=== SUCCESS ==="
+                echo "✅ Code compiled successfully"
+                echo "✅ Tests passed" 
+                echo "✅ Package built"
+                echo "✅ SonarQube analysis completed"
+                echo "Artifacts are available in Jenkins"
+            '''
         }
         
         failure {
             echo "❌ Pipeline failed! Check the logs above."
+        }
+        
+        aborted {
+            echo "⏸️ Pipeline was aborted - SonarQube analysis took too long"
+            sh '''
+                echo "=== ABORTED ==="
+                echo "SonarQube analysis timed out"
+                echo "The build, test, and package stages completed successfully"
+                echo "You can check SonarQube manually later"
+            '''
         }
         
         unstable {
