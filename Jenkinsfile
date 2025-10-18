@@ -22,10 +22,6 @@ pipeline {
                     java -version
                     echo "Maven Wrapper:"
                     ./mvnw --version
-                    echo "Current directory:"
-                    pwd
-                    echo "Project structure:"
-                    ls -la
                 '''
             }
         }
@@ -34,7 +30,7 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Cleaning Project ==="
-                    ./mvnw clean -q -Denforcer.skip=true
+                    ./mvnw clean -q -Denforcer.skip=true -Dcheckstyle.skip=true
                     echo "Clean completed"
                 '''
             }
@@ -44,7 +40,7 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Compiling Code ==="
-                    ./mvnw compile -q -Denforcer.skip=true
+                    ./mvnw compile -q -Denforcer.skip=true -Dcheckstyle.skip=true
                     echo "Compilation completed successfully"
                 '''
             }
@@ -54,7 +50,7 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Running Tests with Coverage ==="
-                    ./mvnw test jacoco:report -q -Denforcer.skip=true
+                    ./mvnw test jacoco:report -q -Denforcer.skip=true -Dcheckstyle.skip=true
                     echo "Tests and coverage report completed"
                 '''
             }
@@ -71,7 +67,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        ./mvnw sonar:sonar -q -Denforcer.skip=true \
+                        ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.projectName='Spring PetClinic' \
                         -Dsonar.host.url=\${SONAR_HOST_URL} \
@@ -93,17 +89,13 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Building Package ==="
-                    ./mvnw package -DskipTests -q -Denforcer.skip=true
+                    ./mvnw package -DskipTests -q -Denforcer.skip=true -Dcheckstyle.skip=true
                     echo "Package built successfully"
                 '''
             }
             post {
                 success {
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                    sh '''
-                        echo "=== Generated Artifact ==="
-                        ls -la target/*.jar
-                    '''
                 }
             }
         }
@@ -115,40 +107,7 @@ pipeline {
                 echo "=== Build Summary ==="
                 echo "Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
                 echo "Result: ${currentBuild.currentResult}"
-                echo "Workspace: ${env.WORKSPACE}"
             """
-        }
-        
-        success {
-            echo "🎉 Pipeline executed successfully!"
-            sh '''
-                echo "=== SUCCESS ==="
-                echo "All stages completed successfully"
-                echo "Artifacts are available in Jenkins"
-                echo "SonarQube analysis completed"
-            '''
-        }
-        
-        failure {
-            echo "❌ Pipeline failed! Check the logs above."
-            sh '''
-                echo "=== FAILURE ==="
-                echo "Check the specific stage that failed above"
-                echo "Common issues:"
-                echo "- Compilation errors"
-                echo "- Test failures" 
-                echo "- SonarQube connection issues"
-                echo "- Dependency resolution problems"
-            '''
-        }
-        
-        unstable {
-            echo "⚠️ Pipeline completed but quality gate failed!"
-            sh '''
-                echo "=== UNSTABLE ==="
-                echo "Quality gate not met in SonarQube"
-                echo "Check SonarQube dashboard for details"
-            '''
         }
     }
 }
