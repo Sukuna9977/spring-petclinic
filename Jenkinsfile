@@ -31,52 +31,38 @@ pipeline {
                     mvn --version
                     echo "Current directory:"
                     pwd
-                    echo "Project structure:"
-                    ls -la
                 '''
             }
         }
         
-        // Stage 3: Clean Workspace
-        stage('Clean Project') {
+        // Stage 3: Clean and Build
+        stage('Clean and Build') {
             steps {
                 sh '''
-                    echo "=== Cleaning Project ==="
-                    mvn clean -q
-                    echo "Clean completed"
+                    echo "=== Cleaning and Building ==="
+                    mvn clean compile -q
+                    echo "Build completed successfully"
                 '''
             }
         }
         
-        // Stage 4: Code Compilation
-        stage('Compile Code') {
+        // Stage 4: Run Tests
+        stage('Run Tests') {
             steps {
                 sh '''
-                    echo "=== Compiling Code ==="
-                    mvn compile -q
-                    echo "Compilation completed successfully"
-                '''
-            }
-        }
-        
-        // Stage 5: Run Tests with Coverage
-        stage('Run Tests with Coverage') {
-            steps {
-                sh '''
-                    echo "=== Running Tests with Coverage ==="
+                    echo "=== Running Tests ==="
                     mvn test jacoco:report -q
-                    echo "Tests and coverage report completed"
+                    echo "Tests completed"
                 '''
             }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
-                    archiveArtifacts artifacts: '**/target/surefire-reports/*.txt, **/target/site/jacoco/*', fingerprint: false
                 }
             }
         }
         
-        // Stage 6: Code Quality Analysis
+        // Stage 5: SonarQube Analysis
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
@@ -92,7 +78,7 @@ pipeline {
             }
         }
         
-        // Stage 7: Wait for Quality Gate
+        // Stage 6: Quality Gate
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -101,7 +87,7 @@ pipeline {
             }
         }
         
-        // Stage 8: Build Package
+        // Stage 7: Build Package
         stage('Build Package') {
             steps {
                 sh '''
@@ -124,16 +110,7 @@ pipeline {
                 echo "=== Build Summary ==="
                 echo "Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
                 echo "Result: ${currentBuild.currentResult}"
-                echo "Workspace: ${env.WORKSPACE}"
             """
-        }
-        
-        success {
-            echo "🎉 Pipeline executed successfully!"
-        }
-        
-        failure {
-            echo "❌ Pipeline failed! Check the logs above."
         }
     }
 }
