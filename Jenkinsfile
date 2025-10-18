@@ -1,13 +1,9 @@
 pipeline {
     agent any
     
-    tools {
-        maven 'maven'
-    }
-    
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        MAVEN_OPTS = '-Xmx1024m'  // Removed MaxPermSize which is deprecated
+        // Let Maven wrapper handle Java version
     }
     
     stages {
@@ -25,57 +21,55 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Checking Environment ==="
-                    echo "Java Version:"
+                    echo "System Java Version:"
                     java -version
-                    echo "Maven Version:"
-                    mvn --version
+                    echo "Maven Wrapper:"
+                    ./mvnw --version || echo "Using system Maven"
                     echo "Current directory:"
                     pwd
-                    echo "Project structure:"
-                    ls -la
                 '''
             }
         }
         
-        // Stage 3: Clean Workspace
+        // Stage 3: Clean Workspace - Use Maven Wrapper
         stage('Clean Project') {
             steps {
                 sh '''
                     echo "=== Cleaning Project ==="
-                    mvn clean -q
+                    ./mvnw clean -q
                     echo "Clean completed"
                 '''
             }
         }
         
-        // Stage 4: Dependency Resolution
+        // Stage 4: Dependency Resolution - Use Maven Wrapper
         stage('Resolve Dependencies') {
             steps {
                 sh '''
                     echo "=== Resolving Dependencies ==="
-                    mvn dependency:resolve -q
+                    ./mvnw dependency:resolve -q
                     echo "Dependencies resolved successfully"
                 '''
             }
         }
         
-        // Stage 5: Code Compilation
+        // Stage 5: Code Compilation - Use Maven Wrapper
         stage('Compile Code') {
             steps {
                 sh '''
                     echo "=== Compiling Code ==="
-                    mvn compile -q
+                    ./mvnw compile -q
                     echo "Compilation completed successfully"
                 '''
             }
         }
         
-        // Stage 6: Run Tests with Coverage
+        // Stage 6: Run Tests with Coverage - Use Maven Wrapper
         stage('Run Tests with Coverage') {
             steps {
                 sh '''
                     echo "=== Running Tests with Coverage ==="
-                    mvn test jacoco:report -q
+                    ./mvnw test jacoco:report -q
                     echo "Tests and coverage report completed"
                 '''
             }
@@ -87,13 +81,13 @@ pipeline {
             }
         }
         
-        // Stage 7: Code Quality Analysis
+        // Stage 7: Code Quality Analysis - Use Maven Wrapper
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        mvn sonar:sonar \
+                        ./mvnw sonar:sonar \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.projectName='Spring PetClinic' \
                         -Dsonar.host.url=\${SONAR_HOST_URL} \
@@ -112,12 +106,12 @@ pipeline {
             }
         }
         
-        // Stage 9: Build Package
+        // Stage 9: Build Package - Use Maven Wrapper
         stage('Build Package') {
             steps {
                 sh '''
                     echo "=== Building Package ==="
-                    mvn package -DskipTests -q
+                    ./mvnw package -DskipTests -q
                     echo "Package built successfully"
                 '''
             }
