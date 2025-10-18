@@ -2,13 +2,10 @@ pipeline {
     agent any
     
     tools {
-        // Configure Maven installation (make sure Maven is configured in Jenkins Global Tool Configuration)
-        maven 'M3'  // Use the name of your Maven installation in Jenkins
-        jdk 'jdk21' // Use the name of your JDK installation in Jenkins
+        maven 'maven'  // Use the exact name you configured
     }
     
     environment {
-        // Define environment variables
         SONAR_PROJECT_KEY = 'spring-petclinic'
         MAVEN_OPTS = '-Xmx1024m -XX:MaxPermSize=256m'
     }
@@ -134,32 +131,20 @@ pipeline {
     
     post {
         always {
-            // Generate build summary - FIXED: Use env variables properly
             sh """
                 echo "=== Build Summary ==="
                 echo "Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
                 echo "Result: ${currentBuild.currentResult}"
                 echo "Workspace: ${env.WORKSPACE}"
             """
-            
-            // Clean up workspace
-            cleanWs()
         }
         
         success {
             echo "🎉 Pipeline executed successfully!"
-            sh '''
-                echo "=== SUCCESS ==="
-                echo "All stages completed successfully"
-            '''
         }
         
         failure {
             echo "❌ Pipeline failed! Check the logs above."
-            sh '''
-                echo "=== FAILURE ==="
-                echo "Check the specific stage that failed above"
-            '''
         }
         
         unstable {
