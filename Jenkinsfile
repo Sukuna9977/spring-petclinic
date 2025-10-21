@@ -10,7 +10,7 @@ pipeline {
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
         SONAR_HOST_URL = 'http://172.17.0.1:9000'
-        MAVEN_OPTS = '-Xmx1024m -XX:MaxPermSize=256m'
+        MAVEN_OPTS = '-Xmx1024m'  // Removed MaxPermSize for Java 21 compatibility
     }
     
     stages {
@@ -52,7 +52,7 @@ pipeline {
                 checkout scm
                 sh '''
                     echo "=== Git Information ==="
-                    git branch --show-current
+                    git branch --showcurrent
                     git log -1 --oneline
                     echo "=== Working Directory ==="
                     pwd
@@ -69,8 +69,8 @@ pipeline {
                     java -version
                     echo "Maven Wrapper:"
                     ./mvnw --version
-                    echo "=== Environment Variables ==="
-                    env | sort
+                    echo "=== Maven Options ==="
+                    echo "MAVEN_OPTS: ${MAVEN_OPTS}"
                 '''
             }
         }
@@ -184,10 +184,6 @@ pipeline {
                                 echo "Check SonarQube dashboard for details: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                                 currentBuild.result = 'UNSTABLE'
                                 currentBuild.description = "⚠️ Quality Gate: FAILED"
-                                
-                                // You can add specific notifications here
-                                // emailext subject: "Quality Gate Failed", body: "Check ${env.BUILD_URL}"
-                                
                             } else {
                                 echo "⚠️ Quality Gate status: ${qualityGate.status}"
                                 currentBuild.result = 'UNSTABLE'
@@ -260,9 +256,6 @@ pipeline {
                 echo "✅ Quality Gate passed"
                 echo "✅ Artifacts available in Jenkins"
             '''
-            
-            // Optional: Success notifications
-            // slackSend color: 'good', message: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} succeeded!"
         }
         
         failure {
@@ -272,14 +265,11 @@ pipeline {
                 echo "=== FAILURE ANALYSIS ==="
                 echo "Check the specific stage that failed above"
                 echo "Common issues:"
-                echo "- Compilation errors"
-                echo "- Test failures" 
+                echo "- Java version compatibility"
+                echo "- Maven configuration errors"
+                echo "- Environment variable issues"
                 echo "- Network connectivity"
-                echo "- Resource constraints"
-            }
-            
-            // Optional: Failure notifications
-            // slackSend color: 'danger', message: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} failed!"
+            '''
         }
         
         unstable {
@@ -293,9 +283,6 @@ pipeline {
                 echo "    - Timeouts in quality checks"
                 echo "✅ Code still compiled and tests passed"
             '''
-            
-            // Optional: Unstable notifications
-            // slackSend color: 'warning', message: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} completed with warnings"
         }
         
         changed {
