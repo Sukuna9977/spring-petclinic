@@ -89,14 +89,15 @@ pipeline {
         stage('SonarQube Analysis') {
     steps {
         withSonarQubeEnv('sonarqube') {
-            sh """
+            sh '''
+                echo "Running SonarQube analysis..."
                 ./mvnw sonar:sonar \
-                  -Dsonar.projectKey=spring-petclinic \
-                  -Dsonar.projectName='Spring PetClinic' \
-                  -Dsonar.host.url=http://10.0.2.2:9000 \
-                  -Denforcer.skip=true \
-                  -Dcheckstyle.skip=true
-            """
+                    -Dsonar.projectKey=spring-petclinic \
+                    -Dsonar.projectName=Spring PetClinic \
+                    -Dsonar.host.url=http://172.17.0.1:9000 \
+                    -Denforcer.skip=true \
+                    -Dcheckstyle.skip=true
+            '''
         }
     }
 }
