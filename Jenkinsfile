@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-         SONAR_PROJECT_KEY = 'spring-petclinic'
+        SONAR_PROJECT_KEY = 'spring-petclinic'
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_AUTH_TOKEN = credentials('sonarqube-token')
     }
@@ -52,7 +52,6 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Running Tests with Coverage ==="
-                    # Skip tests that require Docker (TestContainers)
                     ./mvnw test jacoco:report -q -Denforcer.skip=true -Dcheckstyle.skip=true -Dtest=!PostgresIntegrationTests
                     echo "Tests and coverage report completed"
                 '''
@@ -98,13 +97,12 @@ pipeline {
                     echo "SonarQube URL: ${env.SONAR_HOST_URL}"
                     echo "Project Key: ${SONAR_PROJECT_KEY}"
                     
-                    ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \
-                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                    -Dsonar.projectName='Spring PetClinic' \
-                    -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                    ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \\
+                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
+                    -Dsonar.projectName='Spring PetClinic' \\
+                    -Dsonar.host.url=${env.SONAR_HOST_URL} \\
                     -Dsonar.login=${env.SONAR_AUTH_TOKEN}
                 """
-                }
             }
         }
         
@@ -118,6 +116,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     timeout(time: 15, unit: 'MINUTES') {
                         waitForQualityGate abortPipeline: false
+                    }
                 }
             }
         }
@@ -131,8 +130,6 @@ pipeline {
                 echo "Result: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
             """
-            
-            // Clean up workspace to save disk space
             cleanWs()
         }
         
@@ -144,18 +141,6 @@ pipeline {
                 echo "✅ Tests passed" 
                 echo "✅ Package built (66MB JAR)"
                 echo "✅ Artifacts archived in Jenkins"
-            '''
-        }
-        
-        aborted {
-            echo "⏸️ Pipeline completed with warnings"
-            sh '''
-                echo "=== COMPLETED WITH WARNINGS ==="
-                echo "✅ All core stages completed successfully"
-                echo "⚠️  SonarQube analysis timed out (common issue)"
-                echo "📦 66MB JAR package created and archived"
-                echo "🧪 Tests executed and reported"
-                echo "🔧 Code compiled without errors"
             '''
         }
         
