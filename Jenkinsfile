@@ -93,7 +93,7 @@ pipeline {
                 echo "Running SonarQube analysis..."
                 ./mvnw sonar:sonar \
                     -Dsonar.projectKey=spring-petclinic \
-                    -Dsonar.projectName=Spring PetClinic \
+                    -Dsonar.projectName="Spring PetClinic" \
                     -Dsonar.host.url=http://172.17.0.1:9000 \
                     -Denforcer.skip=true \
                     -Dcheckstyle.skip=true
