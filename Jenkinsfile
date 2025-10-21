@@ -153,4 +153,4 @@ pipeline {
             echo "⚠️ Quality gate failed but build completed!"
         }
     }
-}
+
