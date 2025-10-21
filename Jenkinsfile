@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        SONAR_HOST_URL = 'http://host.docker.internal:9000'
+        SONAR_HOST_URL = 'http://10.0.0.2:9000'  // ← Your VM IP
         SONAR_AUTH_TOKEN = credentials('sonarqube-token')
     }  // ✅ Added missing closing brace
     
