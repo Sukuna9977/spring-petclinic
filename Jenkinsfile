@@ -1,11 +1,6 @@
 pipeline {
     agent any
     
-    options {
-        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
-        timeout(time: 30, unit: 'MINUTES')
-    }
-    
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
         SONAR_HOST_URL = 'http://172.17.0.1:9000'
@@ -110,25 +105,26 @@ pipeline {
             steps {
                 script {
                     echo "Waiting for Quality Gate result..."
+                    
+                    // Add a small delay to ensure analysis is processed
                     sleep 30
                     
                     try {
-                        timeout(time: 5, unit: 'MINUTES') {
-                            def qg = waitForQualityGate abortPipeline: false
+                        timeout(time: 10, unit: 'MINUTES') {
+                            def qualityGate = waitForQualityGate abortPipeline: false
                             
-                            if (qg.status == 'OK') {
-                                echo "✅ Quality Gate PASSED"
-                                currentBuild.description = "✅ Quality Gate: PASSED"
+                            if (qualityGate.status != 'OK') {
+                                echo "Quality Gate status: ${qualityGate.status}"
+                                currentBuild.result = 'UNSTABLE'
+                                echo "Quality Gate failed but pipeline continues due to abortPipeline: false"
                             } else {
-                                echo "⚠️ Quality Gate status: ${qg.status}"
-                                // Don't set result to UNSTABLE - this fucks up weather report
-                                currentBuild.description = "⚠️ Quality Gate: ${qg.status}"
+                                echo "Quality Gate passed! Status: ${qualityGate.status}"
                             }
                         }
                     } catch (Exception ex) {
-                        echo "⚠️ Quality Gate timeout or error: ${ex.message}"
-                        currentBuild.description = "⚠️ Quality Gate: TIMEOUT"
-                        // Don't change build result - keep it SUCCESS
+                        echo "WARNING: Quality Gate check failed: ${ex.message}"
+                        echo "Continuing pipeline without quality gate result"
+                        currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
@@ -143,7 +139,7 @@ pipeline {
                 echo "Result: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
             """
-            // Don't clean workspace in post-always - it fucks up artifacts
+            cleanWs()
         }
         
         success {
@@ -152,7 +148,7 @@ pipeline {
                 echo "=== SUCCESS ==="
                 echo "✅ Code compiled successfully"
                 echo "✅ Tests passed" 
-                echo "✅ Package built"
+                echo "✅ Package built (66MB JAR)"
                 echo "✅ Artifacts archived in Jenkins"
             '''
         }
@@ -161,8 +157,8 @@ pipeline {
             echo "❌ Pipeline failed! Check the logs above."
         }
         
-        cleanup {
-            cleanWs()  // Clean workspace only at the very end
+        unstable {
+            echo "⚠️ Quality gate failed but build completed!"
         }
     }
 }
