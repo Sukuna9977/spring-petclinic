@@ -3,6 +3,8 @@ pipeline {
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_AUTH_TOKEN = credentials('sonarqube-token')  // Uses Jenkins credential
     }
     
     stages {
