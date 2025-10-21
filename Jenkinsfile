@@ -93,6 +93,7 @@ pipeline {
                 ./mvnw sonar:sonar \
                   -Dsonar.projectKey=spring-petclinic \
                   -Dsonar.projectName='Spring PetClinic' \
+                  -Dsonar.host.url=http://10.0.2.2:9000 \
                   -Denforcer.skip=true \
                   -Dcheckstyle.skip=true
             """
