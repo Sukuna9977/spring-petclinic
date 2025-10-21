@@ -4,8 +4,6 @@ pipeline {
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
         SONAR_HOST_URL = 'http://172.17.0.1:9000'
-        // Remove this line - credentials should only be used in withCredentials block
-        // SONAR_AUTH_TOKEN = credentials('sonarqube-token')
     }
     
     stages {
@@ -87,30 +85,47 @@ pipeline {
         }
         
         stage('SonarQube Analysis') {
-    steps {
-        withSonarQubeEnv('sonarqube') {
-            sh '''
-                echo "Running SonarQube analysis..."
-                ./mvnw sonar:sonar \
-                    -Dsonar.projectKey=spring-petclinic \
-                    -Dsonar.projectName="Spring PetClinic" \
-                    -Dsonar.host.url=http://172.17.0.1:9000 \
-                    -Denforcer.skip=true \
-                    -Dcheckstyle.skip=true
-            '''
-        }
-    }
-}
-        
-        stage('Quality Gate') {
-            when {
-                expression { 
-                    return env.SONAR_HOST_URL != null && env.SONAR_HOST_URL != '' 
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        echo "Running SonarQube analysis..."
+                        ./mvnw sonar:sonar \
+                            -Dsonar.projectKey=spring-petclinic \
+                            -Dsonar.projectName="Spring PetClinic" \
+                            -Dsonar.host.url=http://172.17.0.1:9000 \
+                            -Denforcer.skip=true \
+                            -Dcheckstyle.skip=true \
+                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                    '''
                 }
             }
+        }
+        
+        stage('Quality Gate') {
             steps {
-                timeout(time: 15, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
+                script {
+                    echo "Waiting for Quality Gate result..."
+                    
+                    // Add a small delay to ensure analysis is processed
+                    sleep 30
+                    
+                    try {
+                        timeout(time: 10, unit: 'MINUTES') {
+                            def qualityGate = waitForQualityGate abortPipeline: false
+                            
+                            if (qualityGate.status != 'OK') {
+                                echo "Quality Gate status: ${qualityGate.status}"
+                                currentBuild.result = 'UNSTABLE'
+                                echo "Quality Gate failed but pipeline continues due to abortPipeline: false"
+                            } else {
+                                echo "Quality Gate passed! Status: ${qualityGate.status}"
+                            }
+                        }
+                    } catch (Exception ex) {
+                        echo "WARNING: Quality Gate check failed: ${ex.message}"
+                        echo "Continuing pipeline without quality gate result"
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }
