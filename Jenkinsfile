@@ -2,9 +2,11 @@ pipeline {
     agent any
     
     environment {
-        SONAR_PROJECT_KEY = 'spring-petclinic'
-        SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('sonarqube-token')
+        environment {
+    SONAR_PROJECT_KEY = 'spring-petclinic'
+    SONAR_HOST_URL = 'http://host.docker.internal:9000'  // ← CHANGE THIS
+    SONAR_AUTH_TOKEN = credentials('sonarqube-token')
+}
     }
     
     stages {
