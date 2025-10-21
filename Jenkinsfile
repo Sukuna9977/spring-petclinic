@@ -86,23 +86,22 @@ pipeline {
         }
         
         stage('SonarQube Analysis') {
-            when {
-                expression { 
-                    return env.SONAR_HOST_URL != null && env.SONAR_HOST_URL != '' 
-                }
-            }
-            steps {
-                sh """
-                    echo "=== Starting SonarQube Analysis ==="
-                    echo "SonarQube URL: ${env.SONAR_HOST_URL}"
-                    echo "Project Key: ${SONAR_PROJECT_KEY}"
-                    
-                    ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \\
-                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
-                    -Dsonar.projectName='Spring PetClinic' \\
-                    -Dsonar.host.url=${env.SONAR_HOST_URL} \\
-                    -Dsonar.login=${env.SONAR_AUTH_TOKEN}
-                """
+    steps {
+        withCredentials([string(credentialsId: 'SONAR_AUTH_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
+            sh """
+                echo "=== Starting SonarQube Analysis ==="
+                echo "SonarQube URL: ${SONAR_HOST_URL}"
+                echo "Project Key: spring-petclinic"
+                
+                ./mvnw sonar:sonar \
+                  -Dsonar.projectKey=spring-petclinic \
+                  -Dsonar.projectName='Spring PetClinic' \
+                  -Dsonar.host.url=${SONAR_HOST_URL} \
+                  -Dsonar.token=${SONAR_AUTH_TOKEN} \
+                  -Dsonar.verbose=true \
+                  -Denforcer.skip=true \
+                  -Dcheckstyle.skip=true
+            """
             }
         }
         
