@@ -3,9 +3,10 @@ pipeline {
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        SONAR_HOST_URL = 'http://172.17.0.1:9000'  // ← Docker bridge gateway
-        SONAR_AUTH_TOKEN = credentials('sonarqube-token')
-    }  // ✅ Added missing closing brace
+        SONAR_HOST_URL = 'http://172.17.0.1:9000'
+        // Remove this line - credentials should only be used in withCredentials block
+        // SONAR_AUTH_TOKEN = credentials('sonarqube-token')
+    }
     
     stages {
         stage('Checkout SCM') {
@@ -86,22 +87,28 @@ pipeline {
         }
         
         stage('SonarQube Analysis') {
-    steps {
-        withCredentials([string(credentialsId: 'SONAR_AUTH_TOKEN', variable: 'SONAR_AUTH_TOKEN')]) {
-            sh """
-                echo "=== Starting SonarQube Analysis ==="
-                echo "SonarQube URL: ${SONAR_HOST_URL}"
-                echo "Project Key: spring-petclinic"
-                
-                ./mvnw sonar:sonar \
-                  -Dsonar.projectKey=spring-petclinic \
-                  -Dsonar.projectName='Spring PetClinic' \
-                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                  -Dsonar.token=${SONAR_AUTH_TOKEN} \
-                  -Dsonar.verbose=true \
-                  -Denforcer.skip=true \
-                  -Dcheckstyle.skip=true
-            """
+            steps {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
+                    sh """
+                        echo "=== Starting SonarQube Analysis ==="
+                        echo "SonarQube URL: ${env.SONAR_HOST_URL}"
+                        echo "Project Key: ${env.SONAR_PROJECT_KEY}"
+                        
+                        # Test token first
+                        echo "Testing SonarQube connection..."
+                        curl -u "${SONAR_AUTH_TOKEN}": "${env.SONAR_HOST_URL}/api/projects/search" | head -c 100
+                        
+                        echo "Running SonarQube analysis..."
+                        ./mvnw sonar:sonar \
+                          -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
+                          -Dsonar.projectName='Spring PetClinic' \
+                          -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                          -Dsonar.token=${SONAR_AUTH_TOKEN} \
+                          -Dsonar.verbose=true \
+                          -Denforcer.skip=true \
+                          -Dcheckstyle.skip=true
+                    """
+                }
             }
         }
         
@@ -112,10 +119,8 @@ pipeline {
                 }
             }
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    timeout(time: 15, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: false
-                    }
+                timeout(time: 15, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: false
                 }
             }
         }
