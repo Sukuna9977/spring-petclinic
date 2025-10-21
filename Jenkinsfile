@@ -2,9 +2,9 @@ pipeline {
     agent any
     
     environment {
-        SONAR_PROJECT_KEY = 'spring-petclinic'
+         SONAR_PROJECT_KEY = 'spring-petclinic'
         SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('sonarqube-token')  // Uses Jenkins credential
+        SONAR_AUTH_TOKEN = credentials('sonarqube-token')
     }
     
     stages {
@@ -93,19 +93,17 @@ pipeline {
                 }
             }
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh """
-                        echo "=== Starting SonarQube Analysis ==="
-                        echo "SonarQube URL: ${env.SONAR_HOST_URL}"
-                        echo "Project Key: ${SONAR_PROJECT_KEY}"
-                        
-                        # Use Maven SonarQube plugin (recommended for Java/Maven projects)
-                        ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.projectName='Spring PetClinic' \
-                        -Dsonar.host.url=${env.SONAR_HOST_URL} \
-                        -Dsonar.login=${env.SONAR_AUTH_TOKEN}
-                    """
+                sh """
+                    echo "=== Starting SonarQube Analysis ==="
+                    echo "SonarQube URL: ${env.SONAR_HOST_URL}"
+                    echo "Project Key: ${SONAR_PROJECT_KEY}"
+                    
+                    ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \
+                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                    -Dsonar.projectName='Spring PetClinic' \
+                    -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                    -Dsonar.login=${env.SONAR_AUTH_TOKEN}
+                """
                 }
             }
         }
@@ -117,8 +115,9 @@ pipeline {
                 }
             }
             steps {
-                timeout(time: 15, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
+                withSonarQubeEnv('SonarQube') {
+                    timeout(time: 15, unit: 'MINUTES') {
+                        waitForQualityGate abortPipeline: false
                 }
             }
         }
