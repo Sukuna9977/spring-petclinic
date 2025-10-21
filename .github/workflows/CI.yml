@@ -1,0 +1,199 @@
+# Create the workflows directory
+mkdir -p .github/workflows
+
+# Create a comprehensive CI/CD pipeline
+cat > .github/workflows/ci-cd.yml << 'EOF'
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 1. Security Scanning
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Semgrep Security Scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: |
+          p/security-audit
+          p/secrets
+          p/ci
+        outputFormat: sarif
+
+    - name: Upload Security Results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: semgrep.sarif
+
+  # 2. Build and Test
+  build-test:
+    name: 🏗️ Build and Test
+    runs-on: ubuntu-latest
+    needs: security-scan
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Detect Technology Stack
+      id: detect
+      run: |
+        echo "Detecting technology stack..."
+        if [ -f "package.json" ]; then
+          echo "stack=nodejs" >> $GITHUB_OUTPUT
+          echo "📦 Node.js project detected"
+        elif [ -f "requirements.txt" ] || [ -f "setup.py" ] || [ -f "Pipfile" ]; then
+          echo "stack=python" >> $GITHUB_OUTPUT
+          echo "🐍 Python project detected"
+        elif [ -f "pom.xml" ]; then
+          echo "stack=java" >> $GITHUB_OUTPUT
+          echo "☕ Java project detected"
+        elif [ -f "go.mod" ]; then
+          echo "stack=golang" >> $GITHUB_OUTPUT
+          echo "🐹 Go project detected"
+        else
+          echo "stack=generic" >> $GITHUB_OUTPUT
+          echo "🔧 Generic project detected"
+        fi
+
+    - name: Setup Node.js
+      if: steps.detect.outputs.stack == 'nodejs'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Setup Python
+      if: steps.detect.outputs.stack == 'python'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        if [ -f "package.json" ]; then
+          npm ci
+        elif [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        elif [ -f "Pipfile" ]; then
+          pip install pipenv
+          pipenv install --dev
+        fi
+
+    - name: Run Tests
+      run: |
+        if [ -f "package.json" ] && [ -f "npm test" ]; then
+          npm test
+        elif [ -f "pytest.ini" ] || [ -f "tests/" ]; then
+          pip install pytest
+          python -m pytest tests/ -v
+        else
+          echo "No test framework detected, skipping tests"
+        fi
+
+    - name: Build Application
+      run: |
+        echo "🏗️ Building application..."
+        if [ -f "package.json" ] && [ -f "npm run build" ]; then
+          npm run build
+        fi
+        # Add other build commands as needed
+
+  # 3. Docker Build (if Dockerfile exists)
+  docker-build:
+    name: 🐳 Docker Build
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 4. Kubernetes Deployment (if k8s manifests exist)
+  k8s-deploy:
+    name: ☸️ Kubernetes Deploy
+    runs-on: ubuntu-latest
+    needs: [build-test, docker-build]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to Kubernetes
+      run: |
+        echo "🚀 Deploying application..."
+        if [ -f "kuber.yml" ] || [ -f "k8s-manifests.yaml" ] || [ -d "k8s/" ]; then
+          echo "Kubernetes manifests found"
+          # In real scenario, you would use:
+          # kubectl apply -f kuber.yml
+          # But for security, this requires proper setup with secrets
+        else
+          echo "No Kubernetes manifests found"
+        fi
+
+  # 5. Pipeline Summary
+  summary:
+    name: 📊 Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [security-scan, build-test, docker-build]
+    if: always()
+    
+    steps:
+    - name: Pipeline Status
+      run: |
+        echo "## CI/CD Pipeline Complete ✅"
+        echo ""
+        echo "**Jobs Status:**"
+        echo "- 🔒 Security Scan: ${{ needs.security-scan.result }}"
+        echo "- 🏗️ Build & Test: ${{ needs.build-test.result }}"
+        echo "- 🐳 Docker Build: ${{ needs.docker-build.result }}"
+        echo ""
+        echo "**Next Steps:**"
+        echo "- Review security findings"
+        echo "- Check test results"
+        echo "- Verify build artifacts"
+EOF
