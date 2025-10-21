@@ -94,10 +94,15 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                         echo "=== Starting SonarQube Analysis ==="
-                        rm -rf .scannerwork target/sonar
+                        echo "SonarQube URL: ${env.SONAR_HOST_URL}"
+                        echo "Project Key: ${SONAR_PROJECT_KEY}"
+                        
+                        # Use Maven SonarQube plugin (recommended for Java/Maven projects)
                         ./mvnw sonar:sonar -q -Denforcer.skip=true -Dcheckstyle.skip=true \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.projectName='Spring PetClinic'
+                        -Dsonar.projectName='Spring PetClinic' \
+                        -Dsonar.host.url=${env.SONAR_HOST_URL} \
+                        -Dsonar.login=${env.SONAR_AUTH_TOKEN}
                     """
                 }
             }
