@@ -8,7 +8,7 @@ pipeline {
     
     environment {
         SONAR_PROJECT_KEY = 'spring-petclinic'
-        SONAR_HOST_URL = 'http://172.17.0.1:9000'
+        SONAR_HOST_URL = 'https://172.17.0.1:9000'
     }
     
     stages {
@@ -97,7 +97,7 @@ pipeline {
                         ./mvnw sonar:sonar \
                             -Dsonar.projectKey=spring-petclinic \
                             -Dsonar.projectName="Spring PetClinic" \
-                            -Dsonar.host.url=http://172.17.0.1:9000 \
+                            -Dsonar.host.url=https://172.17.0.1:9000 \
                             -Denforcer.skip=true \
                             -Dcheckstyle.skip=true \
                             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
